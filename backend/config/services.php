@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'backup' => [
+        'server_url' => env('BACKUP_SERVER_URL', ''),
+        'storage_path' => env('BACKUP_STORAGE_PATH', storage_path('app/backups')),
+        'secret' => env('BACKUP_SHARED_SECRET', ''),
+        'timeout' => (int) env('BACKUP_HTTP_TIMEOUT', 30),
+    ],
+
 ];
