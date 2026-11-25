@@ -7,6 +7,7 @@ use App\Models\Message;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -119,10 +120,12 @@ class ConduitMsgApiTest extends TestCase
         $this->assertNotNull($send->json('data.sent_at'));
 
         // Bob dapat membaca pesan dari Alice
+        Auth::forgetGuards();
         $bobRead = $this->withToken($bobToken)->getJson("/api/messages/{$alice->id}");
         $bobRead->assertOk()->assertJsonCount(1, 'messages');
 
         // Charlie (User C) TIDAK BISA melihat chat antara Alice & Bob
+        Auth::forgetGuards();
         $charlieReadAlice = $this->withToken($charlieToken)->getJson("/api/messages/{$alice->id}");
         $charlieReadAlice->assertOk()->assertJsonCount(0, 'messages');
 
@@ -183,10 +186,12 @@ class ConduitMsgApiTest extends TestCase
         $this->assertFileExists($this->tempBackupDir.DIRECTORY_SEPARATOR.$fileName);
 
         // 2. Endpoint /api/backup/logs hanya menampilkan riwayat milik user yang memintanya
+        Auth::forgetGuards();
         $this->withToken($aliceToken)->getJson('/api/backup/logs')
             ->assertOk()
             ->assertJsonCount(1, 'logs');
 
+        Auth::forgetGuards();
         $this->withToken($bobToken)->getJson('/api/backup/logs')
             ->assertOk()
             ->assertJsonCount(0, 'logs');
@@ -201,6 +206,7 @@ class ConduitMsgApiTest extends TestCase
             ], 201),
         ]);
 
+        Auth::forgetGuards();
         $this->withToken($aliceToken)->postJson('/api/backup/request')
             ->assertOk()
             ->assertJsonPath('file_name', $fileName);
