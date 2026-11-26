@@ -1,7 +1,7 @@
 import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
-export function RegisterForm({ onSubmit, isSubmitting, serverError, onSwitchToLogin }) {
+export function RegisterForm({ onSubmit, isSubmitting, serverError }) {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -202,17 +202,6 @@ export function RegisterForm({ onSubmit, isSubmitting, serverError, onSwitchToLo
         {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
         <span>{isSubmitting ? 'Mendaftarkan...' : 'Daftar Akun'}</span>
       </button>
-
-      <p className="pt-2 text-center text-sm text-[var(--color-text-secondary)]">
-        Sudah punya akun?{' '}
-        <button
-          type="button"
-          onClick={onSwitchToLogin}
-          className="cursor-pointer font-semibold text-[var(--color-primary-deep)] underline underline-offset-2 hover:text-[var(--color-primary-aa)] focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
-        >
-          Masuk
-        </button>
-      </p>
     </form>
   )
 }

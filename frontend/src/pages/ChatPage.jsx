@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { BackupModal } from '../components/backup/BackupModal'
 import { ChatWindow } from '../components/chat/ChatWindow'
 import { ContactSidebar } from '../components/chat/ContactSidebar'
+import { ProfileModal } from '../components/layout/ProfileModal'
 import { useBackup } from '../hooks/useBackup'
 import { useCloudClock } from '../hooks/useCloudClock'
 import { useContacts } from '../hooks/useContacts'
@@ -11,10 +12,13 @@ export function ChatPage({ user, initialCloudTime, onLogout }) {
   const {
     contacts,
     isLoading: isLoadingContacts,
+    isRefreshing: isRefreshingContacts,
     error: contactsError,
+    refreshContacts,
   } = useContacts()
   const [selectedContact, setSelectedContact] = useState(null)
   const [isBackupOpen, setIsBackupOpen] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
 
   const { displayTime, isSynced, isSyncing, resyncNow } = useCloudClock(initialCloudTime)
   const {
@@ -62,12 +66,15 @@ export function ChatPage({ user, initialCloudTime, onLogout }) {
           selectedContactId={selectedContact?.id ?? null}
           onSelectContact={setSelectedContact}
           isLoading={isLoadingContacts}
+          isRefreshing={isRefreshingContacts}
           error={contactsError}
+          onRefreshContacts={refreshContacts}
           cloudTimeDisplay={displayTime}
           isCloudSynced={isSynced}
           isCloudSyncing={isSyncing}
           onRefreshClock={resyncNow}
           onOpenBackup={handleOpenBackup}
+          onOpenProfile={() => setIsProfileOpen(true)}
           onLogout={onLogout}
         />
       </div>
@@ -103,6 +110,12 @@ export function ChatPage({ user, initialCloudTime, onLogout }) {
         isTriggering={isTriggering}
         feedback={feedback}
         onTriggerBackup={triggerBackup}
+      />
+
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={user}
       />
     </div>
   )
