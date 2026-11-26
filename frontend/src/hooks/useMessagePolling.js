@@ -9,7 +9,7 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
   const [threadState, setThreadState] = useState({
     contactId: null,
     messages: [],
-    failedMessages: [],
+    pendingMessages: [],
     error: '',
     loaded: false,
   })
@@ -28,7 +28,7 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
       setThreadState((prev) => ({
         contactId,
         messages: sortByCloudTimestamp(list, 'sent_at'),
-        failedMessages: prev.contactId === contactId ? prev.failedMessages : [],
+        pendingMessages: prev.contactId === contactId ? prev.pendingMessages : [],
         error: '',
         loaded: true,
       }))
@@ -38,7 +38,7 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
         setThreadState((prev) => ({
           contactId,
           messages: prev.contactId === contactId ? prev.messages : [],
-          failedMessages: prev.contactId === contactId ? prev.failedMessages : [],
+          pendingMessages: prev.contactId === contactId ? prev.pendingMessages : [],
           error: extractApiError(err, 'Gagal memuat riwayat pesan.'),
           loaded: true,
         }))
@@ -56,7 +56,7 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
         setThreadState({
           contactId: activeContactId,
           messages: sortByCloudTimestamp(list, 'sent_at'),
-          failedMessages: [],
+          pendingMessages: [],
           error: '',
           loaded: true,
         })
@@ -66,13 +66,14 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
         setThreadState({
           contactId: activeContactId,
           messages: [],
-          failedMessages: [],
+          pendingMessages: [],
           error: extractApiError(err, 'Gagal memuat riwayat pesan.'),
           loaded: true,
         })
       })
 
     const intervalId = window.setInterval(() => {
+      if (document.hidden) return
       loadMessages(activeContactId, { silent: true })
     }, POLLING_INTERVAL_MS)
 
@@ -84,44 +85,64 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
 
   const sendMessage = useCallback(
     async (text) => {
-      if (!activeContactId || !text.trim()) return
+      const trimmed = text.trim()
+      if (!activeContactId || !trimmed) return
+      const targetContactId = activeContactId
+      const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+
       setIsSending(true)
-      const tempId = `failed-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      setThreadState((prev) => ({
+        ...prev,
+        contactId: targetContactId,
+        pendingMessages: [
+          ...(prev.contactId === targetContactId ? prev.pendingMessages : []),
+          {
+            id: tempId,
+            sender_id: currentUserId,
+            receiver_id: targetContactId,
+            message_text: trimmed,
+            sent_at: null,
+            _status: 'sending',
+          },
+        ],
+        loaded: true,
+      }))
+
       try {
         const created = await sendMessageApi({
-          receiverId: activeContactId,
-          messageText: text.trim(),
+          receiverId: targetContactId,
+          messageText: trimmed,
         })
+
+        if (activeContactRef.current !== targetContactId) return
+
         if (created && created.id) {
           setThreadState((prev) => {
-            const base = prev.contactId === activeContactId ? prev.messages : []
-            const exists = base.some((m) => m.id === created.id)
-            const next = exists ? base : [...base, created]
+            if (prev.contactId !== targetContactId) return prev
+            const exists = prev.messages.some((m) => m.id === created.id)
+            const nextMessages = exists ? prev.messages : [...prev.messages, created]
             return {
               ...prev,
-              contactId: activeContactId,
-              messages: sortByCloudTimestamp(next, 'sent_at'),
+              messages: sortByCloudTimestamp(nextMessages, 'sent_at'),
+              pendingMessages: prev.pendingMessages.filter((item) => item.id !== tempId),
               loaded: true,
             }
           })
         } else {
-          await loadMessages(activeContactId, { silent: true })
+          setThreadState((prev) => ({
+            ...prev,
+            pendingMessages: prev.pendingMessages.filter((item) => item.id !== tempId),
+          }))
+          await loadMessages(targetContactId, { silent: true })
         }
       } catch {
+        if (activeContactRef.current !== targetContactId) return
         setThreadState((prev) => ({
           ...prev,
-          contactId: activeContactId,
-          failedMessages: [
-            ...(prev.contactId === activeContactId ? prev.failedMessages : []),
-            {
-              id: tempId,
-              sender_id: currentUserId,
-              receiver_id: activeContactId,
-              message_text: text.trim(),
-              sent_at: null,
-              _status: 'failed',
-            },
-          ],
+          contactId: targetContactId,
+          pendingMessages: prev.pendingMessages.map((item) =>
+            item.id === tempId ? { ...item, _status: 'failed' } : item,
+          ),
           loaded: true,
         }))
       } finally {
@@ -135,22 +156,30 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
     async (failedMsg) => {
       setThreadState((prev) => ({
         ...prev,
-        failedMessages: prev.failedMessages.filter((item) => item.id !== failedMsg.id),
+        pendingMessages: prev.pendingMessages.filter((item) => item.id !== failedMsg.id),
       }))
       await sendMessage(failedMsg.message_text)
     },
     [sendMessage],
   )
 
+  const dismissFailedMessage = useCallback((failedMsg) => {
+    setThreadState((prev) => ({
+      ...prev,
+      pendingMessages: prev.pendingMessages.filter((item) => item.id !== failedMsg.id),
+    }))
+  }, [])
+
   const isCurrentContact = threadState.contactId === activeContactId
   return {
     messages: isCurrentContact
-      ? [...threadState.messages, ...threadState.failedMessages]
+      ? [...threadState.messages, ...threadState.pendingMessages]
       : [],
     isLoading: Boolean(activeContactId) && (!isCurrentContact || !threadState.loaded),
     isSending,
     error: isCurrentContact ? threadState.error : '',
     sendMessage,
     retryFailedMessage,
+    dismissFailedMessage,
   }
 }

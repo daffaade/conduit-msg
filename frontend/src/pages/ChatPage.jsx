@@ -38,6 +38,7 @@ export function ChatPage({ user, initialCloudTime, onLogout }) {
     error: messagesError,
     sendMessage,
     retryFailedMessage,
+    dismissFailedMessage,
   } = useMessagePolling({
     activeContactId: selectedContact?.id ?? null,
     currentUserId: user?.id,
@@ -93,6 +94,7 @@ export function ChatPage({ user, initialCloudTime, onLogout }) {
           error={messagesError}
           onSendMessage={sendMessage}
           onRetryMessage={retryFailedMessage}
+          onDismissFailedMessage={dismissFailedMessage}
           onBackMobile={() => setSelectedContact(null)}
           cloudTimeDisplay={displayTime}
           isCloudSynced={isSynced}
@@ -110,6 +112,7 @@ export function ChatPage({ user, initialCloudTime, onLogout }) {
         isTriggering={isTriggering}
         feedback={feedback}
         onTriggerBackup={triggerBackup}
+        onRefreshLogs={loadLogs}
       />
 
       <ProfileModal
