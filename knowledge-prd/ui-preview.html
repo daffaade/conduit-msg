@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ConduitMsg — Preview UI v2.0 (Chatgram / Telegram Style)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #3D85C6;
+      --primary-aa: #2B6AA3;
+      --primary-hover: #235888;
+      --primary-deep: #1D4B75;
+      --primary-soft: #EBF3FA;
+      --primary-border: #C5DDF2;
+      --bg-canvas: #FFFFFF;
+      --bg-sidebar: #F8FAFC;
+      --bg-subtle: #F1F5F9;
+      --border: #E2E8F0;
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #526071;
+      --success: #047857;
+      --success-soft: #ECFDF5;
+      --danger: #B91C1C;
+      --danger-soft: #FEF2F2;
+      --shadow-bubble: 0 1px 2px rgba(15, 23, 42, 0.06);
+      --shadow-modal: 0 16px 40px -8px rgba(15, 23, 42, 0.20);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      color: var(--text-primary);
+      background: var(--bg-sidebar);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .tabular { font-variant-numeric: tabular-nums; }
+
+    /* Preview Bar */
+    .preview-bar {
+      background: var(--primary-deep);
+      color: #fff;
+      padding: 8px 16px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .preview-tabs { display: flex; gap: 6px; }
+    .preview-tab {
+      background: rgba(255,255,255,0.14);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .preview-tab.active, .preview-tab:hover {
+      background: var(--primary-aa);
+      border-color: #fff;
+    }
+
+    .view { display: none; flex: 1; min-height: 0; }
+    .view.active { display: flex; }
+
+    /* Full-bleed 2-Column Telegram Shell */
+    .sidebar {
+      width: 340px;
+      background: var(--bg-canvas);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-head {
+      height: 56px;
+      border-bottom: 1px solid var(--border);
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .account-info { display: flex; align-items: center; gap: 10px; }
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 9999px;
+      background: var(--primary-aa);
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .account-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .account-sub { font-size: 12px; color: var(--text-muted); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .btn-primary { background: var(--primary-aa); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-outline {
+      background: var(--bg-canvas);
+      border-color: var(--border);
+      color: var(--text-secondary);
+    }
+    .btn-outline:hover { background: var(--bg-subtle); color: var(--text-primary); }
+
+    .search-wrap { padding: 10px 12px 8px; }
+    .search-box {
+      width: 100%;
+      height: 38px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: var(--bg-subtle);
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text-primary);
+      outline: none;
+    }
+    .search-box:focus {
+      background: var(--bg-canvas);
+      border-color: var(--primary);
+    }
+
+    .contact-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .contact-item {
+      width: 100%;
+      min-height: 56px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .contact-item:hover { background: var(--bg-subtle); }
+    .contact-item.active { background: var(--primary-aa); color: #fff; }
+    .contact-item .avatar {
+      width: 42px;
+      height: 42px;
+      background: var(--primary-soft);
+      color: var(--primary-deep);
+    }
+    .contact-item.active .avatar {
+      background: rgba(255,255,255,0.20);
+      color: #fff;
+    }
+    .contact-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .contact-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .contact-item.active .contact-name { color: #fff; }
+    .contact-item.active .contact-meta { color: rgba(255,255,255,0.92); }
+
+    /* Right Workspace */
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-subtle);
+      min-width: 0;
+    }
+    .chat-topbar {
+      height: 56px;
+      background: var(--bg-canvas);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .chat-peer { display: flex; align-items: center; gap: 10px; }
+    .top-actions { display: flex; align-items: center; gap: 8px; }
+    .clock-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-sidebar);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .clock-prefix { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+
+    .messages-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 24px;
+    }
+    .messages-inner {
+      max-width: 760px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .date-chip {
+      align-self: center;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin: 6px 0;
+    }
+    .bubble {
+      max-width: 68%;
+      padding: 10px 14px;
+      font-size: 15px;
+      line-height: 1.45;
+      box-shadow: var(--shadow-bubble);
+    }
+    .bubble.incoming {
+      align-self: flex-start;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border);
+      border-radius: 12px 12px 12px 4px;
+      color: var(--text-primary);
+    }
+    .bubble.outgoing {
+      align-self: flex-end;
+      background: var(--primary-soft);
+      border: 1px solid var(--primary-border);
+      border-radius: 12px 12px 4px 12px;
+      color: var(--text-primary);
+    }
+    .inline-time {
+      float: right;
+      margin: 6px 0 0 12px;
+      font-size: 12px;
+      line-height: 1;
+      color: var(--text-muted);
+    }
+    .bubble.outgoing .inline-time { color: var(--primary-deep); }
+
+    .composer-bar {
+      background: var(--bg-canvas);
+      border-top: 1px solid var(--border);
+      padding: 10px 16px;
+    }
+    .composer-form {
+      max-width: 760px;
+      margin: 0 auto;
+      display: flex;
+      gap: 10px;
+    }
+    .composer-input {
+      flex: 1;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-sidebar);
+      padding: 8px 14px;
+      font-size: 15px;
+      font-family: inherit;
+      outline: none;
+    }
+    .composer-input:focus {
+      border-color: var(--primary);
+      background: var(--bg-canvas);
+    }
+
+    /* Auth View */
+    .auth-wrap {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: var(--bg-sidebar);
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 380px;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+    }
+    .auth-head { text-align: center; margin-bottom: 22px; }
+    .auth-mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--primary-aa);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 12px;
+      font-weight: 700;
+    }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+    .field input {
+      width: 100%;
+      height: 44px;
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    /* Dialog */
+    dialog:modal {
+      margin: auto;
+      width: min(540px, calc(100vw - 32px));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 0;
+      background: var(--bg-canvas);
+      box-shadow: var(--shadow-modal);
+    }
+    dialog::backdrop { background: rgba(15, 23, 42, 0.40); }
+    .modal-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-body { padding: 20px; }
+    .backup-box {
+      background: var(--primary-soft);
+      border: 1px solid var(--primary-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .log-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-top: 8px;
+    }
+    .tag {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+    .tag.ok { background: var(--success-soft); color: var(--success); }
+  </style>
+</head>
+<body>
+  <div class="preview-bar">
+    <span><strong>ConduitMsg v2.0</strong> — Chatgram / Telegram Web Style (Palette <code>#3D85C6</code>)</span>
+    <div class="preview-tabs">
+      <button class="preview-tab active" onclick="switchView('chat', this)">Chat (/)</button>
+      <button class="preview-tab" onclick="switchView('login', this)">Login (/login)</button>
+    </div>
+  </div>
+
+  <section id="view-chat" class="view active">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <div class="account-info">
+          <div class="avatar">AK</div>
+          <div>
+            <div class="account-name">@akun_aktif</div>
+            <div class="account-sub">ConduitMsg</div>
+          </div>
+        </div>
+        <button class="btn btn-outline" onclick="switchView('login', document.querySelectorAll('.preview-tab')[1])">Logout</button>
+      </div>
+      <div class="search-wrap">
+        <input class="search-box" type="search" placeholder="Cari kontak..." aria-label="Cari kontak" />
+      </div>
+      <div class="contact-list">
+        <button class="contact-item active" onclick="selectPeer('rekan_tim_1', 'RT', 2, this)">
+          <div class="avatar">RT</div>
+          <div>
+            <div class="contact-name">@rekan_tim_1</div>
+            <div class="contact-meta">User #2</div>
+          </div>
+        </button>
+        <button class="contact-item" onclick="selectPeer('rekan_tim_2', 'R2', 3, this)">
+          <div class="avatar">R2</div>
+          <div>
+            <div class="contact-name">@rekan_tim_2</div>
+            <div class="contact-meta">User #3</div>
+          </div>
+        </button>
+      </div>
+    </aside>
+
+    <main class="chat-main">
+      <header class="chat-topbar">
+        <div class="chat-peer">
+          <div class="avatar" id="peerAvatar">RT</div>
+          <div>
+            <div class="account-name" id="peerName">@rekan_tim_1</div>
+            <div class="account-sub" id="peerMeta">Percakapan 1-on-1 · User #2</div>
+          </div>
+        </div>
+        <div class="top-actions">
+          <div class="clock-box">
+            <span class="clock-prefix">Cloud</span>
+            <span id="cloudClock" class="tabular">02:45:00</span>
+          </div>
+          <button class="btn btn-primary" onclick="document.getElementById('backupDialog').showModal()">Backup Data</button>
+        </div>
+      </header>
+
+      <div class="messages-scroll" id="messagesScroll">
+        <div class="messages-inner" id="messagesInner">
+          <div class="date-chip">26 November 2026</div>
+          <div class="bubble incoming">
+            Server lokal sudah terhubung ke Cloud Database.
+            <span class="inline-time tabular">02:41:10</span>
+          </div>
+          <div class="bubble outgoing">
+            Tampilan sudah diupdate ke gaya Telegram Web dengan timestamp inline dari Cloud DB.
+            <span class="inline-time tabular">02:42:05</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer-bar">
+        <form class="composer-form" onsubmit="sendPreviewMsg(event)">
+          <input id="msgInput" class="composer-input" type="text" placeholder="Tulis pesan..." required />
+          <button type="submit" class="btn btn-primary">Kirim</button>
+        </form>
+      </div>
+    </main>
+  </section>
+
+  <section id="view-login" class="view">
+    <div class="auth-wrap">
+      <div class="auth-card">
+        <div class="auth-head">
+          <div class="auth-mark">CM</div>
+          <h1 style="font-size:20px; font-weight:600;">Masuk ke ConduitMsg</h1>
+          <p style="font-size:13px; color:var(--text-muted); margin-top:4px;">Masukkan kredensial akun untuk terhubung ke server lokal.</p>
+        </div>
+        <form onsubmit="event.preventDefault(); switchView('chat', document.querySelectorAll('.preview-tab')[0])">
+          <div class="field">
+            <label for="l-id">Username atau Email</label>
+            <input id="l-id" type="text" placeholder="username atau email@domain.com" required />
+          </div>
+          <div class="field">
+            <label for="l-pw">Password</label>
+            <input id="l-pw" type="password" placeholder="Password" required />
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; height:44px;">Masuk</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <dialog id="backupDialog" closedby="any">
+    <div class="modal-head">
+      <strong style="font-size:16px;">Desktop Backup Storage</strong>
+      <form method="dialog"><button class="btn btn-outline" style="padding:6px 12px;">Tutup</button></form>
+    </div>
+    <div class="modal-body">
+      <div class="backup-box">
+        <p style="font-size:14px;">Salin data dari Cloud Database ke penyimpanan fisik PC Backup Storage.</p>
+        <button class="btn btn-primary" type="button">Backup Sekarang</button>
+      </div>
+      <div class="log-row">
+        <div>
+          <div style="font-family:monospace; font-size:13px; font-weight:600;">backup_20261126_024000.json</div>
+          <div class="tabular" style="font-size:12px; color:var(--text-muted);">26 Nov 2026 · 02:40:00 Cloud</div>
+        </div>
+        <span class="tag ok">SUCCESS</span>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    function switchView(v, btn) {
+      document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+      document.getElementById('view-' + v).classList.add('active');
+      document.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    function selectPeer(u, ini, id, btn) {
+      document.querySelectorAll('.contact-item').forEach(el => el.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('peerName').textContent = '@' + u;
+      document.getElementById('peerAvatar').textContent = ini;
+      document.getElementById('peerMeta').textContent = 'Percakapan 1-on-1 · User #' + id;
+    }
+    function sendPreviewMsg(e) {
+      e.preventDefault();
+      const input = document.getElementById('msgInput');
+      const val = input.value.trim();
+      if (!val) return;
+      const div = document.createElement('div');
+      div.className = 'bubble outgoing';
+      div.textContent = val;
+      const span = document.createElement('span');
+      span.className = 'inline-time tabular';
+      span.textContent = document.getElementById('cloudClock').textContent;
+      div.appendChild(span);
+      document.getElementById('messagesInner').appendChild(div);
+      input.value = '';
+    }
+    setInterval(() => {
+      const d = new Date();
+      const p = n => String(n).padStart(2, '0');
+      document.getElementById('cloudClock').textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    }, 1000);
+  </script>
+</body>
+</html>
