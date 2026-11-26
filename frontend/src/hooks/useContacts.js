@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchContacts } from '../api/chatApi'
 import { extractApiError } from '../api/client'
 
@@ -9,8 +9,11 @@ export function useContacts() {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const inFlightRef = useRef(false)
 
   const loadContacts = useCallback(async ({ silent = false } = {}) => {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     if (!silent) {
       setIsRefreshing(true)
     }
@@ -23,6 +26,7 @@ export function useContacts() {
         setError(extractApiError(err, 'Gagal memuat daftar kontak.'))
       }
     } finally {
+      inFlightRef.current = false
       setIsLoading(false)
       setIsRefreshing(false)
     }
@@ -30,28 +34,53 @@ export function useContacts() {
 
   useEffect(() => {
     let active = true
-    fetchContacts()
-      .then((list) => {
+    let timerId = null
+
+    const scheduleNext = () => {
+      if (!active) return
+      timerId = window.setTimeout(async () => {
+        if (!active) return
+        if (!document.hidden) {
+          await loadContacts({ silent: true })
+        }
+        scheduleNext()
+      }, CONTACTS_POLL_MS)
+    }
+
+    const loadInitial = async () => {
+      inFlightRef.current = true
+      try {
+        const list = await fetchContacts()
         if (!active) return
         setContacts(list)
         setError('')
-      })
-      .catch((err) => {
+      } catch {
+        // Retry once after a short delay for transient network/server congestion
+        await new Promise((resolve) => window.setTimeout(resolve, 1500))
         if (!active) return
-        setError(extractApiError(err, 'Gagal memuat daftar kontak.'))
-      })
-      .finally(() => {
-        if (active) setIsLoading(false)
-      })
+        try {
+          const list = await fetchContacts()
+          if (!active) return
+          setContacts(list)
+          setError('')
+        } catch (retryErr) {
+          if (!active) return
+          setError(extractApiError(retryErr, 'Gagal memuat daftar kontak.'))
+        }
+      } finally {
+        inFlightRef.current = false
+        if (active) {
+          setIsLoading(false)
+          scheduleNext()
+        }
+      }
+    }
 
-    const intervalId = window.setInterval(() => {
-      if (document.hidden) return
-      loadContacts({ silent: true })
-    }, CONTACTS_POLL_MS)
+    loadInitial()
 
     return () => {
       active = false
-      window.clearInterval(intervalId)
+      if (timerId !== null) window.clearTimeout(timerId)
     }
   }, [loadContacts])
 

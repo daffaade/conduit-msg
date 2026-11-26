@@ -15,13 +15,15 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
   })
   const [isSending, setIsSending] = useState(false)
   const activeContactRef = useRef(activeContactId)
+  const isPollingRef = useRef(false)
 
   useEffect(() => {
     activeContactRef.current = activeContactId
   }, [activeContactId])
 
   const loadMessages = useCallback(async (contactId, { silent = false } = {}) => {
-    if (!contactId) return
+    if (!contactId || isPollingRef.current) return
+    isPollingRef.current = true
     try {
       const list = await fetchMessages(contactId)
       if (activeContactRef.current !== contactId) return
@@ -43,6 +45,8 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
           loaded: true,
         }))
       }
+    } finally {
+      isPollingRef.current = false
     }
   }, [])
 
@@ -50,6 +54,19 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
     if (!activeContactId) return undefined
 
     let active = true
+    let timerId = null
+
+    const scheduleNext = () => {
+      if (!active) return
+      timerId = window.setTimeout(async () => {
+        if (!active || activeContactRef.current !== activeContactId) return
+        if (!document.hidden) {
+          await loadMessages(activeContactId, { silent: true })
+        }
+        scheduleNext()
+      }, POLLING_INTERVAL_MS)
+    }
+
     fetchMessages(activeContactId)
       .then((list) => {
         if (!active || activeContactRef.current !== activeContactId) return
@@ -71,15 +88,13 @@ export function useMessagePolling({ activeContactId, currentUserId }) {
           loaded: true,
         })
       })
-
-    const intervalId = window.setInterval(() => {
-      if (document.hidden) return
-      loadMessages(activeContactId, { silent: true })
-    }, POLLING_INTERVAL_MS)
+      .finally(() => {
+        if (active) scheduleNext()
+      })
 
     return () => {
       active = false
-      window.clearInterval(intervalId)
+      if (timerId !== null) window.clearTimeout(timerId)
     }
   }, [activeContactId, loadMessages])
 
