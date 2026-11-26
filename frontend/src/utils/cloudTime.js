@@ -62,10 +62,13 @@ export function sortByCloudTimestamp(items, field = 'sent_at') {
   return [...items].sort((a, b) => compareCloudTimestamps(a?.[field], b?.[field]))
 }
 
+const CLOUD_TIME_ZONE = 'Asia/Jakarta'
+
 export function formatCloudTimeOnly(dateOrMs) {
   const date = dateOrMs instanceof Date ? dateOrMs : new Date(dateOrMs)
   if (Number.isNaN(date.getTime())) return '--:--:--'
   return new Intl.DateTimeFormat('id-ID', {
+    timeZone: CLOUD_TIME_ZONE,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -80,6 +83,7 @@ export function formatCloudBubbleTime(raw) {
   if (ms === null) return ''
   const date = new Date(ms)
   return new Intl.DateTimeFormat('id-ID', {
+    timeZone: CLOUD_TIME_ZONE,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -92,14 +96,23 @@ export function formatCloudBubbleTime(raw) {
 export function getCloudDateKey(raw) {
   const ms = parseCloudTimestampMs(raw)
   if (ms === null) return null
-  const d = new Date(ms)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: CLOUD_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(ms))
+  const year = parts.find((p) => p.type === 'year')?.value
+  const month = parts.find((p) => p.type === 'month')?.value
+  const day = parts.find((p) => p.type === 'day')?.value
+  return year && month && day ? `${year}-${month}-${day}` : null
 }
 
 export function formatCloudDateLabel(raw) {
   const ms = parseCloudTimestampMs(raw)
   if (ms === null) return ''
   return new Intl.DateTimeFormat('id-ID', {
+    timeZone: CLOUD_TIME_ZONE,
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -111,6 +124,7 @@ export function formatCloudFullTimestamp(raw) {
   if (ms === null) return raw || '-'
   const date = new Date(ms)
   const datePart = new Intl.DateTimeFormat('id-ID', {
+    timeZone: CLOUD_TIME_ZONE,
     day: '2-digit',
     month: 'short',
     year: 'numeric',

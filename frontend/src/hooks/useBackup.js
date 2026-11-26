@@ -8,6 +8,7 @@ export function useBackup() {
   const [isLoadingLogs, setIsLoadingLogs] = useState(false)
   const [isTriggering, setIsTriggering] = useState(false)
   const [feedback, setFeedback] = useState(null)
+  const [lastCounts, setLastCounts] = useState(null)
 
   const loadLogs = useCallback(async () => {
     setIsLoadingLogs(true)
@@ -32,11 +33,18 @@ export function useBackup() {
       const result = await requestBackupApi()
       const fileName =
         result?.file_name ?? result?.backup_log?.file_name ?? result?.log?.file_name
+      const counts = result?.counts ?? null
+      setLastCounts(counts)
+
+      const summary =
+        counts && typeof counts === 'object'
+          ? ` (${counts.users ?? 0} pengguna, ${counts.messages ?? 0} pesan)`
+          : ''
       setFeedback({
         type: 'success',
         text: fileName
-          ? `Backup berhasil disimpan ke PC Backup Storage (${fileName}).`
-          : 'Backup berhasil disimpan ke PC Backup Storage.',
+          ? `Backup tersimpan di PC Backup Storage: ${fileName}${summary}.`
+          : `Backup berhasil disimpan ke PC Backup Storage${summary}.`,
       })
       await loadLogs()
     } catch (err) {
@@ -60,6 +68,7 @@ export function useBackup() {
     isLoadingLogs,
     isTriggering,
     feedback,
+    lastCounts,
     loadLogs,
     triggerBackup,
     clearFeedback,

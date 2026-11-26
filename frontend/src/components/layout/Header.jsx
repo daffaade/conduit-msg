@@ -1,23 +1,18 @@
 import { ChevronLeft, HardDriveDownload } from 'lucide-react'
+import { getAvatarTone, getInitials } from '../../utils/avatar'
 import { CloudClockBadge } from './CloudClockBadge'
-
-function getInitials(username) {
-  if (!username) return '?'
-  const parts = username.split(/[._-\s]+/).filter(Boolean)
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase()
-  }
-  return username.slice(0, 2).toUpperCase()
-}
 
 export function Header({
   contact,
   cloudTimeDisplay,
   isCloudSynced,
+  isCloudSyncing,
   onRefreshClock,
   onOpenBackup,
   onBackMobile,
 }) {
+  const contactTone = contact ? getAvatarTone(contact.username) : null
+
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--color-border)] bg-white px-4">
       <div className="flex min-w-0 items-center gap-2.5">
@@ -34,7 +29,10 @@ export function Header({
 
         {contact ? (
           <>
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-aa)] text-xs font-semibold text-white">
+            <div
+              style={{ backgroundColor: contactTone.bg, color: contactTone.text }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+            >
               {getInitials(contact.username)}
             </div>
             <div className="min-w-0">
@@ -42,7 +40,7 @@ export function Header({
                 @{contact.username}
               </div>
               <div className="truncate text-xs text-[var(--color-text-muted)]">
-                Percakapan 1-on-1 · User #{contact.id}
+                Percakapan pribadi
               </div>
             </div>
           </>
@@ -57,6 +55,7 @@ export function Header({
         <CloudClockBadge
           displayTime={cloudTimeDisplay}
           isSynced={isCloudSynced}
+          isSyncing={isCloudSyncing}
           onRefresh={onRefreshClock}
         />
 

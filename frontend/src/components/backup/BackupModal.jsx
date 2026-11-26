@@ -1,4 +1,4 @@
-import { CheckCircle2, HardDriveDownload, Loader2, X, XCircle } from 'lucide-react'
+import { CheckCircle2, HardDriveDownload, Loader2, RefreshCw, X, XCircle } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { formatCloudFullTimestamp } from '../../utils/cloudTime'
 
@@ -10,6 +10,7 @@ export function BackupModal({
   isTriggering,
   feedback,
   onTriggerBackup,
+  onRefreshLogs,
 }) {
   const dialogRef = useRef(null)
 
@@ -79,12 +80,12 @@ export function BackupModal({
       style={{ boxShadow: 'var(--shadow-modal)' }}
     >
       <div className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
-        <h1
+        <h2
           id="backup-modal-title"
           className="text-base font-semibold text-[var(--color-text-primary)] sm:text-lg"
         >
           Desktop Backup Storage
-        </h1>
+        </h2>
         <form method="dialog">
           <button
             type="submit"
@@ -99,8 +100,8 @@ export function BackupModal({
       <div className="p-5">
         <div className="mb-4 flex flex-col gap-3 rounded-[10px] border border-[var(--color-primary-border)] bg-[var(--color-primary-soft)] p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm leading-relaxed text-[var(--color-text-primary)]">
-            Salin data <strong>users, messages, &amp; logs</strong> dari Cloud Database ke penyimpanan
-            fisik PC Backup Storage.
+            Simpan salinan data pengguna, pesan, dan log dari Cloud Database ke penyimpanan lokal PC
+            Backup Storage.
           </p>
           <button
             type="button"
@@ -135,14 +136,31 @@ export function BackupModal({
           </div>
         )}
 
-        <h2 className="mb-2.5 text-xs font-semibold text-[var(--color-text-secondary)]">
-          Riwayat Permintaan Backup Anda
-        </h2>
+        <div className="mb-2.5 flex items-center justify-between">
+          <h3 className="text-xs font-semibold text-[var(--color-text-secondary)]">
+            Riwayat Permintaan Backup Anda
+          </h3>
+          {onRefreshLogs && (
+            <button
+              type="button"
+              onClick={onRefreshLogs}
+              disabled={isLoadingLogs}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-[6px] px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-bg-subtle)] hover:text-[var(--color-text-primary)] disabled:cursor-wait"
+            >
+              <RefreshCw
+                className={`h-3 w-3 ${isLoadingLogs ? 'animate-spin text-[var(--color-primary-aa)]' : ''}`}
+                strokeWidth={2}
+                aria-hidden="true"
+              />
+              <span>Segarkan</span>
+            </button>
+          )}
+        </div>
 
         <div className="max-h-[260px] space-y-2 overflow-y-auto pr-0.5">
           {isLoadingLogs && logs.length === 0 ? (
             <div className="py-8 text-center text-sm text-[var(--color-text-muted)]">
-              Memuat riwayat log dari Cloud Database...
+              Memuat riwayat log backup...
             </div>
           ) : logs.length === 0 ? (
             <div className="rounded-[10px] border border-[var(--color-border)] bg-[var(--color-bg-sidebar)] px-4 py-6 text-center">
@@ -150,8 +168,8 @@ export function BackupModal({
                 Belum ada riwayat backup pada akun ini
               </p>
               <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                Klik tombol &ldquo;Backup Sekarang&rdquo; di atas untuk menyimpan salinan pertama ke PC
-                Backup Storage.
+                Klik tombol &ldquo;Backup Sekarang&rdquo; di atas untuk menyimpan salinan pertama ke
+                PC Backup Storage.
               </p>
             </div>
           ) : (
@@ -167,7 +185,7 @@ export function BackupModal({
                       {log.file_name || 'backup_snapshot.json'}
                     </div>
                     <div className="tabular-nums mt-0.5 text-xs text-[var(--color-text-muted)]">
-                      {formatCloudFullTimestamp(log.backed_up_at)} Cloud
+                      {formatCloudFullTimestamp(log.backed_up_at)} WIB
                     </div>
                   </div>
                   <span

@@ -1,7 +1,7 @@
 import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 
-export function RegisterForm({ onSubmit, isSubmitting, serverError, onSwitchToLogin }) {
+export function RegisterForm({ onSubmit, isSubmitting, serverError }) {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,7 +28,8 @@ export function RegisterForm({ onSubmit, isSubmitting, serverError, onSwitchToLo
         email: emailEl ? !emailEl.validity.valid : false,
         password: passEl ? !passEl.validity.valid : false,
       })
-      form.reportValidity()
+      const firstInvalid = form.querySelector(':invalid')
+      firstInvalid?.focus()
       return
     }
     onSubmit({ username, email, password })
@@ -80,12 +81,16 @@ export function RegisterForm({ onSubmit, isSubmitting, serverError, onSwitchToLo
               : 'register-username-hint'
           }
           placeholder="username_anda"
-          className="field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white px-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25"
+          className={`field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white px-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25 ${
+            invalidFields.username ? 'user-invalid-fallback' : ''
+          }`}
         />
-        <div id="register-username-error" className="field-error-msg">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>Error: Gunakan 3–32 huruf, angka, titik, atau underscore tanpa spasi.</span>
-        </div>
+        {invalidFields.username && (
+          <div id="register-username-error" className="field-error-msg" role="alert">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Gunakan 3–32 karakter (huruf, angka, titik, garis bawah, atau tanda hubung) tanpa spasi.</span>
+          </div>
+        )}
       </div>
 
       <div>
@@ -119,12 +124,16 @@ export function RegisterForm({ onSubmit, isSubmitting, serverError, onSwitchToLo
               : 'register-email-hint'
           }
           placeholder="nama@domain.com"
-          className="field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white px-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25"
+          className={`field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white px-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25 ${
+            invalidFields.email ? 'user-invalid-fallback' : ''
+          }`}
         />
-        <div id="register-email-error" className="field-error-msg">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>Error: Masukkan alamat email yang valid (contoh: nama@domain.com).</span>
-        </div>
+        {invalidFields.email && (
+          <div id="register-email-error" className="field-error-msg" role="alert">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Masukkan alamat email yang valid (contoh: nama@domain.com).</span>
+          </div>
+        )}
       </div>
 
       <div>
@@ -158,8 +167,10 @@ export function RegisterForm({ onSubmit, isSubmitting, serverError, onSwitchToLo
                 ? 'register-password-hint register-password-error'
                 : 'register-password-hint'
             }
-            placeholder="Password baru"
-            className="field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white pr-11 pl-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25"
+            placeholder="Minimal 6 karakter"
+            className={`field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white pr-11 pl-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25 ${
+              invalidFields.password ? 'user-invalid-fallback' : ''
+            }`}
           />
           <button
             type="button"
@@ -175,10 +186,12 @@ export function RegisterForm({ onSubmit, isSubmitting, serverError, onSwitchToLo
             )}
           </button>
         </div>
-        <div id="register-password-error" className="field-error-msg">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>Error: Password minimal harus terdiri dari 6 karakter.</span>
-        </div>
+        {invalidFields.password && (
+          <div id="register-password-error" className="field-error-msg" role="alert">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Password minimal 6 karakter.</span>
+          </div>
+        )}
       </div>
 
       <button
@@ -189,17 +202,6 @@ export function RegisterForm({ onSubmit, isSubmitting, serverError, onSwitchToLo
         {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
         <span>{isSubmitting ? 'Mendaftarkan...' : 'Daftar Akun'}</span>
       </button>
-
-      <p className="pt-2 text-center text-sm text-[var(--color-text-secondary)]">
-        Sudah punya akun?{' '}
-        <button
-          type="button"
-          onClick={onSwitchToLogin}
-          className="cursor-pointer font-semibold text-[var(--color-primary-deep)] underline underline-offset-2 hover:text-[var(--color-primary-aa)] focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
-        >
-          Masuk
-        </button>
-      </p>
     </form>
   )
 }
