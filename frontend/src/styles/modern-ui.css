@@ -58,16 +58,12 @@ body,
   background-color: var(--color-danger-soft);
 }
 
-.field-input:is(:user-invalid, .user-invalid-fallback) + .field-error-msg {
-  display: flex;
-}
-
 .field-input:user-valid {
   border-color: var(--color-success);
 }
 
 .field-error-msg {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 0.375rem;
   color: var(--color-danger);

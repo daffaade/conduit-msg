@@ -21,7 +21,8 @@ export function LoginForm({ onSubmit, isSubmitting, serverError, onSwitchToRegis
         login: loginEl ? !loginEl.validity.valid : false,
         password: passEl ? !passEl.validity.valid : false,
       })
-      form.reportValidity()
+      const firstInvalid = form.querySelector(':invalid')
+      firstInvalid?.focus()
       return
     }
     onSubmit({ login: loginValue, password })
@@ -65,12 +66,16 @@ export function LoginForm({ onSubmit, isSubmitting, serverError, onSwitchToRegis
           aria-invalid={invalidFields.login ? 'true' : 'false'}
           aria-describedby={invalidFields.login ? 'login-identifier-error' : undefined}
           placeholder="username atau email@domain.com"
-          className="field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white px-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25"
+          className={`field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white px-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25 ${
+            invalidFields.login ? 'user-invalid-fallback' : ''
+          }`}
         />
-        <div id="login-identifier-error" className="field-error-msg">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>Error: Masukkan username atau alamat email akun Anda.</span>
-        </div>
+        {invalidFields.login && (
+          <div id="login-identifier-error" className="field-error-msg" role="alert">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Masukkan username atau alamat email akun Anda.</span>
+          </div>
+        )}
       </div>
 
       <div>
@@ -97,8 +102,10 @@ export function LoginForm({ onSubmit, isSubmitting, serverError, onSwitchToRegis
             required
             aria-invalid={invalidFields.password ? 'true' : 'false'}
             aria-describedby={invalidFields.password ? 'login-password-error' : undefined}
-            placeholder="Password"
-            className="field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white pr-11 pl-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25"
+            placeholder="Masukkan password"
+            className={`field-input h-11 w-full rounded-[10px] border border-[var(--color-border)] bg-white pr-11 pl-3.5 text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-primary)] focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/25 ${
+              invalidFields.password ? 'user-invalid-fallback' : ''
+            }`}
           />
           <button
             type="button"
@@ -114,10 +121,12 @@ export function LoginForm({ onSubmit, isSubmitting, serverError, onSwitchToRegis
             )}
           </button>
         </div>
-        <div id="login-password-error" className="field-error-msg">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>Error: Password minimal 6 karakter.</span>
-        </div>
+        {invalidFields.password && (
+          <div id="login-password-error" className="field-error-msg" role="alert">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Password minimal 6 karakter.</span>
+          </div>
+        )}
       </div>
 
       <button

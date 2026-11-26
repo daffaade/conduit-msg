@@ -26,3 +26,8 @@ export async function fetchCurrentUser() {
   const { data } = await apiClient.get('/me')
   return data
 }
+
+export async function fetchServerTime() {
+  const { data } = await apiClient.get('/server-time')
+  return data
+}

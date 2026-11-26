@@ -16,6 +16,7 @@ export function ChatWindow({
   onBackMobile,
   cloudTimeDisplay,
   isCloudSynced,
+  isCloudSyncing,
   onRefreshClock,
   onOpenBackup,
 }) {
@@ -50,6 +51,7 @@ export function ChatWindow({
         contact={contact}
         cloudTimeDisplay={cloudTimeDisplay}
         isCloudSynced={isCloudSynced}
+        isCloudSyncing={isCloudSyncing}
         onRefreshClock={onRefreshClock}
         onOpenBackup={onOpenBackup}
         onBackMobile={onBackMobile}

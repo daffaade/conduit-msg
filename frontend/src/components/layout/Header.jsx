@@ -14,6 +14,7 @@ export function Header({
   contact,
   cloudTimeDisplay,
   isCloudSynced,
+  isCloudSyncing,
   onRefreshClock,
   onOpenBackup,
   onBackMobile,
@@ -57,6 +58,7 @@ export function Header({
         <CloudClockBadge
           displayTime={cloudTimeDisplay}
           isSynced={isCloudSynced}
+          isSyncing={isCloudSyncing}
           onRefresh={onRefreshClock}
         />
 

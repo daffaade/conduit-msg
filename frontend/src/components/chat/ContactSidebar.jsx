@@ -20,6 +20,7 @@ export function ContactSidebar({
   error,
   cloudTimeDisplay,
   isCloudSynced,
+  isCloudSyncing,
   onRefreshClock,
   onOpenBackup,
   onLogout,
@@ -61,6 +62,7 @@ export function ContactSidebar({
             <CloudClockBadge
               displayTime={cloudTimeDisplay}
               isSynced={isCloudSynced}
+              isSyncing={isCloudSyncing}
               onRefresh={onRefreshClock}
             />
           </div>

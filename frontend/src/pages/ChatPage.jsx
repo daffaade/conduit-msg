@@ -1,21 +1,22 @@
-import { useCallback, useEffect, useState } from 'react'
-import { fetchContacts } from '../api/chatApi'
-import { extractApiError } from '../api/client'
+import { useCallback, useState } from 'react'
 import { BackupModal } from '../components/backup/BackupModal'
 import { ChatWindow } from '../components/chat/ChatWindow'
 import { ContactSidebar } from '../components/chat/ContactSidebar'
 import { useBackup } from '../hooks/useBackup'
 import { useCloudClock } from '../hooks/useCloudClock'
+import { useContacts } from '../hooks/useContacts'
 import { useMessagePolling } from '../hooks/useMessagePolling'
 
 export function ChatPage({ user, initialCloudTime, onLogout }) {
-  const [contacts, setContacts] = useState([])
-  const [isLoadingContacts, setIsLoadingContacts] = useState(true)
-  const [contactsError, setContactsError] = useState('')
+  const {
+    contacts,
+    isLoading: isLoadingContacts,
+    error: contactsError,
+  } = useContacts()
   const [selectedContact, setSelectedContact] = useState(null)
   const [isBackupOpen, setIsBackupOpen] = useState(false)
 
-  const { displayTime, isSynced, resyncNow } = useCloudClock(initialCloudTime)
+  const { displayTime, isSynced, isSyncing, resyncNow } = useCloudClock(initialCloudTime)
   const {
     logs,
     isLoadingLogs,
@@ -37,26 +38,6 @@ export function ChatPage({ user, initialCloudTime, onLogout }) {
     activeContactId: selectedContact?.id ?? null,
     currentUserId: user?.id,
   })
-
-  useEffect(() => {
-    let active = true
-    fetchContacts()
-      .then((list) => {
-        if (!active) return
-        setContacts(list)
-        setContactsError('')
-      })
-      .catch((err) => {
-        if (!active) return
-        setContactsError(extractApiError(err, 'Gagal memuat daftar kontak.'))
-      })
-      .finally(() => {
-        if (active) setIsLoadingContacts(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [])
 
   const handleOpenBackup = useCallback(() => {
     clearFeedback()
@@ -84,6 +65,7 @@ export function ChatPage({ user, initialCloudTime, onLogout }) {
           error={contactsError}
           cloudTimeDisplay={displayTime}
           isCloudSynced={isSynced}
+          isCloudSyncing={isSyncing}
           onRefreshClock={resyncNow}
           onOpenBackup={handleOpenBackup}
           onLogout={onLogout}
@@ -107,6 +89,7 @@ export function ChatPage({ user, initialCloudTime, onLogout }) {
           onBackMobile={() => setSelectedContact(null)}
           cloudTimeDisplay={displayTime}
           isCloudSynced={isSynced}
+          isCloudSyncing={isSyncing}
           onRefreshClock={resyncNow}
           onOpenBackup={handleOpenBackup}
         />
