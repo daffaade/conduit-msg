@@ -5,9 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\BackupLog;
 use App\Support\CloudTime;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
@@ -31,9 +37,9 @@ class BackupController extends Controller
     public function requestBackup(Request $request): JsonResponse
     {
         $user            = $request->user();
-        $backupServerUrl = rtrim((string) config('services.backup.server_url'), '/');
+        $endpoint = $this->backupServerEndpoint('trigger-backup');
 
-        if ($backupServerUrl === '') {
+        if ($endpoint === null) {
             $log = $this->createLog($user->id, 'CONFIG_MISSING', 'FAILED');
 
             return response()->json([
@@ -42,10 +48,6 @@ class BackupController extends Controller
                 'cloud_time' => CloudTime::now(),
             ], 503);
         }
-
-        $endpoint = str_ends_with($backupServerUrl, '/api/trigger-backup')
-            ? $backupServerUrl
-            : $backupServerUrl . '/api/trigger-backup';
 
         $headers = [];
         $secret  = (string) config('services.backup.secret', '');
@@ -93,6 +95,131 @@ class BackupController extends Controller
     }
 
     /**
+     * GET /api/backup/download — Download the requesting user's data from a backup as XLSX.
+     */
+    public function download(Request $request): JsonResponse|StreamedResponse
+    {
+        $validated = $request->validate([
+            'file_name' => ['required', 'string', 'max:100', 'regex:/^backup_[A-Za-z0-9_-]+\.json$/'],
+        ]);
+        $user = $request->user();
+        $fileName = $validated['file_name'];
+
+        $ownsBackup = BackupLog::query()
+            ->where('requested_by', $user->id)
+            ->where('file_name', $fileName)
+            ->where('status', 'SUCCESS')
+            ->exists();
+
+        if (! $ownsBackup) {
+            return response()->json([
+                'message' => 'File backup tidak ditemukan untuk akun ini.',
+            ], 404);
+        }
+
+        $endpoint = $this->backupServerEndpoint('backup-file');
+        if ($endpoint === null || (string) config('services.backup.secret', '') === '') {
+            return response()->json([
+                'message' => 'Layanan unduh backup belum dikonfigurasi dengan URL dan shared secret.',
+            ], 503);
+        }
+
+        try {
+            $response = Http::timeout((int) config('services.backup.timeout', 30))
+                ->acceptJson()
+                ->withHeaders(['X-Backup-Secret' => (string) config('services.backup.secret')])
+                ->get($endpoint, ['file_name' => $fileName]);
+        } catch (ConnectionException $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Tidak dapat menghubungi PC Backup Storage untuk mengambil file.',
+            ], 502);
+        }
+
+        if (! $response->successful()) {
+            return response()->json([
+                'message' => $response->status() === 404
+                    ? 'File backup tidak ditemukan di PC Backup Storage.'
+                    : 'PC Backup Storage gagal mengirim file backup.',
+            ], $response->status() === 404 ? 404 : 502);
+        }
+
+        $snapshot = $response->json();
+        if (
+            ! is_array($snapshot)
+            || ! is_array($snapshot['meta'] ?? null)
+            || (int) ($snapshot['meta']['requested_by'] ?? 0) !== (int) $user->id
+            || ! is_array($snapshot['tables'] ?? null)
+            || ! is_array($snapshot['tables']['users'] ?? null)
+            || ! is_array($snapshot['tables']['messages'] ?? null)
+            || ! is_array($snapshot['tables']['backup_logs'] ?? null)
+        ) {
+            return response()->json([
+                'message' => 'Format file backup tidak valid atau bukan milik akun ini.',
+            ], 422);
+        }
+
+        $userId = (int) $user->id;
+        $profileRows = array_values(array_filter(
+            $snapshot['tables']['users'],
+            static fn ($row): bool => is_array($row) && (int) ($row['id'] ?? 0) === $userId,
+        ));
+
+        if ($profileRows === []) {
+            return response()->json([
+                'message' => 'Profil akun tidak ditemukan di dalam file backup.',
+            ], 422);
+        }
+
+        $messageRows = array_values(array_filter(
+            $snapshot['tables']['messages'],
+            static fn ($row): bool => is_array($row)
+                && ((int) ($row['sender_id'] ?? 0) === $userId
+                    || (int) ($row['receiver_id'] ?? 0) === $userId),
+        ));
+        $logRows = array_values(array_filter(
+            $snapshot['tables']['backup_logs'],
+            static fn ($row): bool => is_array($row) && (int) ($row['requested_by'] ?? 0) === $userId,
+        ));
+
+        $sheets = [
+            'Akun' => [
+                ['id', 'username', 'name', 'email', 'created_at'],
+                $this->selectColumns($profileRows, ['id', 'username', 'name', 'email', 'created_at']),
+            ],
+            'Pesan' => [
+                ['id', 'sender_id', 'receiver_id', 'message_text', 'sent_at'],
+                $this->selectColumns($messageRows, ['id', 'sender_id', 'receiver_id', 'message_text', 'sent_at']),
+            ],
+            'Riwayat Backup' => [
+                ['id', 'file_name', 'status', 'backed_up_at'],
+                $this->selectColumns($logRows, ['id', 'file_name', 'status', 'backed_up_at']),
+            ],
+        ];
+
+        $spreadsheet = new Spreadsheet();
+        foreach ($sheets as $index => [$headers, $rows]) {
+            $sheet = $index === array_key_first($sheets)
+                ? $spreadsheet->getActiveSheet()
+                : $spreadsheet->createSheet();
+            $sheet->setTitle($index);
+            $this->writeSheet($sheet, $headers, $rows);
+        }
+
+        $downloadName = pathinfo($fileName, PATHINFO_FILENAME) . '_personal.xlsx';
+
+        return response()->streamDownload(
+            static fn () => (new Xlsx($spreadsheet))->save('php://output'),
+            $downloadName,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'private, no-store',
+            ],
+        );
+    }
+
+    /**
      * GET /api/backup/logs
      *
      * Returns the authenticated user's own backup history only (FR-02 privacy isolation).
@@ -125,5 +252,52 @@ class BackupController extends Controller
         $log->refresh();
 
         return $log;
+    }
+
+    private function backupServerEndpoint(string $path): ?string
+    {
+        $serverUrl = rtrim((string) config('services.backup.server_url'), '/');
+        if ($serverUrl === '') {
+            return null;
+        }
+
+        $baseUrl = preg_replace('#/api/trigger-backup$#', '', $serverUrl) ?? $serverUrl;
+
+        return $baseUrl . '/api/' . ltrim($path, '/');
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @param  array<int, string>  $columns
+     * @return array<int, array<int, mixed>>
+     */
+    private function selectColumns(array $rows, array $columns): array
+    {
+        return array_map(
+            static fn (array $row): array => array_map(
+                static fn (string $column) => $row[$column] ?? null,
+                $columns,
+            ),
+            $rows,
+        );
+    }
+
+    /**
+     * @param  array<int, string>  $headers
+     * @param  array<int, array<int, mixed>>  $rows
+     */
+    private function writeSheet(Worksheet $sheet, array $headers, array $rows): void
+    {
+        foreach ($headers as $columnIndex => $header) {
+            $cell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columnIndex + 1) . '1';
+            $sheet->setCellValueExplicit($cell, $header, DataType::TYPE_STRING);
+        }
+
+        foreach ($rows as $rowIndex => $row) {
+            foreach ($row as $columnIndex => $value) {
+                $cell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columnIndex + 1) . ($rowIndex + 2);
+                $sheet->setCellValueExplicit($cell, (string) ($value ?? ''), DataType::TYPE_STRING);
+            }
+        }
     }
 }

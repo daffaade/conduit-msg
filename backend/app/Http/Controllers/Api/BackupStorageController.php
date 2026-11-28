@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 /**
@@ -24,6 +25,32 @@ use Throwable;
  */
 class BackupStorageController extends Controller
 {
+    /**
+     * GET /api/backup-file — Return a JSON backup to the application server for an authenticated export.
+     */
+    public function downloadFile(Request $request): Response
+    {
+        if ($unauthorized = $this->verifyBackupSecret($request, true)) {
+            return $unauthorized;
+        }
+
+        $validated = $request->validate([
+            'file_name' => ['required', 'string', 'max:100', 'regex:/^backup_[A-Za-z0-9_-]+\.json$/'],
+        ]);
+        $filePath = $this->resolveBackupDirectory() . DIRECTORY_SEPARATOR . $validated['file_name'];
+
+        if (! File::exists($filePath) || ! File::isFile($filePath)) {
+            return response()->json([
+                'message' => 'File backup tidak ditemukan.',
+            ], 404);
+        }
+
+        return response(File::get($filePath), 200, [
+            'Content-Type' => 'application/json',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    }
+
     /**
      * POST /api/trigger-backup
      *
@@ -235,10 +262,16 @@ class BackupStorageController extends Controller
         return $files[0];
     }
 
-    private function verifyBackupSecret(Request $request): ?JsonResponse
+    private function verifyBackupSecret(Request $request, bool $required = false): ?JsonResponse
     {
         $expected = (string) config('services.backup.secret', '');
         if ($expected === '') {
+            if ($required) {
+                return response()->json([
+                    'message' => 'BACKUP_SHARED_SECRET harus dikonfigurasi untuk akses file backup.',
+                ], 503);
+            }
+
             return null;
         }
 

@@ -10,6 +10,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class ConduitMsgApiTest extends TestCase
@@ -251,5 +253,163 @@ class ConduitMsgApiTest extends TestCase
         $this->assertDatabaseHas('messages', [
             'message_text' => 'Pesan penting sebelum bencana DB',
         ]);
+    }
+
+    public function test_backup_download_is_personal_and_returns_xlsx(): void
+    {
+        $alice = User::factory()->create(['username' => 'alice']);
+        $bob = User::factory()->create(['username' => 'bob']);
+        $charlie = User::factory()->create(['username' => 'charlie']);
+        $token = $alice->createToken('test')->plainTextToken;
+        $fileName = 'backup_test.json';
+
+        BackupLog::create([
+            'requested_by' => $alice->id,
+            'file_name' => $fileName,
+            'status' => 'SUCCESS',
+        ]);
+
+        config([
+            'services.backup.server_url' => 'http://192.168.1.50:8001',
+            'services.backup.secret' => 'test-secret',
+        ]);
+
+        Http::fake([
+            'http://192.168.1.50:8001/api/backup-file*' => Http::response([
+                'meta' => ['requested_by' => $alice->id],
+                'tables' => [
+                    'users' => [
+                        [
+                            'id' => $alice->id,
+                            'username' => 'alice',
+                            'name' => 'Alice',
+                            'email' => 'alice@example.com',
+                            'created_at' => '2026-01-01 00:00:00',
+                            'password' => 'must-not-be-exported',
+                        ],
+                        [
+                            'id' => $bob->id,
+                            'username' => 'bob',
+                            'name' => 'Bob',
+                            'email' => 'bob@example.com',
+                            'password' => 'private-bob-hash',
+                        ],
+                    ],
+                    'messages' => [
+                        [
+                            'id' => 1,
+                            'sender_id' => $alice->id,
+                            'receiver_id' => $bob->id,
+                            'message_text' => '=HYPERLINK("https://example.com")',
+                            'sent_at' => '2026-01-01 00:00:00',
+                        ],
+                        [
+                            'id' => 2,
+                            'sender_id' => $bob->id,
+                            'receiver_id' => $charlie->id,
+                            'message_text' => 'private message between other users',
+                            'sent_at' => '2026-01-01 00:01:00',
+                        ],
+                    ],
+                    'backup_logs' => [
+                        [
+                            'id' => 1,
+                            'requested_by' => $alice->id,
+                            'file_name' => $fileName,
+                            'status' => 'SUCCESS',
+                            'backed_up_at' => '2026-01-01 00:00:00',
+                        ],
+                        [
+                            'id' => 2,
+                            'requested_by' => $bob->id,
+                            'file_name' => 'bob_backup.json',
+                            'status' => 'SUCCESS',
+                            'backed_up_at' => '2026-01-01 00:00:00',
+                        ],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $response = $this->withToken($token)->get('/api/backup/download?file_name='.$fileName);
+
+        $response->assertOk();
+        $this->assertStringContainsString(
+            'backup_test_personal.xlsx',
+            (string) $response->headers->get('content-disposition'),
+        );
+        $xlsxContent = $response->streamedContent();
+        $this->assertStringStartsWith('PK', $xlsxContent);
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'conduit-xlsx-');
+        try {
+            file_put_contents($tempFile, $xlsxContent);
+            $workbook = IOFactory::load($tempFile);
+
+            $accountSheet = $workbook->getSheetByName('Akun');
+            $messageSheet = $workbook->getSheetByName('Pesan');
+            $logsSheet = $workbook->getSheetByName('Riwayat Backup');
+
+            $this->assertNotNull($accountSheet);
+            $this->assertSame('alice', $accountSheet->getCell('B2')->getValue());
+            $this->assertSame(2, $accountSheet->getHighestDataRow());
+
+            $this->assertNotNull($messageSheet);
+            $this->assertSame(2, $messageSheet->getHighestDataRow());
+            $this->assertSame(
+                '=HYPERLINK("https://example.com")',
+                $messageSheet->getCell('D2')->getValue(),
+            );
+            $this->assertSame(DataType::TYPE_STRING, $messageSheet->getCell('D2')->getDataType());
+            $this->assertNotNull($logsSheet);
+            $this->assertSame($fileName, $logsSheet->getCell('B2')->getValue());
+        } finally {
+            if (is_file($tempFile)) {
+                unlink($tempFile);
+            }
+        }
+    }
+
+    public function test_user_cannot_download_another_users_backup(): void
+    {
+        $alice = User::factory()->create(['username' => 'alice']);
+        $bob = User::factory()->create(['username' => 'bob']);
+        BackupLog::create([
+            'requested_by' => $alice->id,
+            'file_name' => 'backup_alice.json',
+            'status' => 'SUCCESS',
+        ]);
+        Http::fake();
+
+        $this->withToken($bob->createToken('test')->plainTextToken)
+            ->getJson('/api/backup/download?file_name=backup_alice.json')
+            ->assertNotFound();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_backup_file_endpoint_requires_secret_and_valid_file_name(): void
+    {
+        $fileName = 'backup_test.json';
+        File::ensureDirectoryExists($this->tempBackupDir);
+        File::put($this->tempBackupDir.DIRECTORY_SEPARATOR.$fileName, '{"tables":[]}');
+
+        $this->getJson('/api/backup-file?file_name='.$fileName)
+            ->assertServiceUnavailable();
+
+        config(['services.backup.secret' => 'test-secret']);
+
+        $this->withHeader('X-Backup-Secret', 'wrong-secret')
+            ->getJson('/api/backup-file?file_name='.$fileName)
+            ->assertForbidden();
+
+        $this->withHeader('X-Backup-Secret', 'test-secret')
+            ->get('/api/backup-file?file_name='.$fileName)
+            ->assertOk()
+            ->assertHeader('content-type', 'application/json');
+
+        $this->withHeader('X-Backup-Secret', 'test-secret')
+            ->getJson('/api/backup-file?file_name=..%2Fsecrets.json')
+            ->assertUnprocessable();
     }
 }

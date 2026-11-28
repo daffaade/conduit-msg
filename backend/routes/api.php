@@ -22,6 +22,7 @@ Route::get('/server-time', [AuthController::class, 'serverTime']);
 */
 Route::post('/trigger-backup', [BackupStorageController::class, 'triggerBackup']);
 Route::post('/restore', [BackupStorageController::class, 'restore']);
+Route::get('/backup-file', [BackupStorageController::class, 'downloadFile']);
 
 /*
 |--------------------------------------------------------------------------
@@ -43,4 +44,5 @@ Route::middleware('auth:sanctum')->group(function (): void {
     // Backup & Riwayat Backup User
     Route::post('/backup/request', [BackupController::class, 'requestBackup']);
     Route::get('/backup/logs', [BackupController::class, 'logs']);
+    Route::get('/backup/download', [BackupController::class, 'download']);
 });
